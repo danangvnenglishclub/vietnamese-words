@@ -119,13 +119,13 @@
 
     <!-- Play/Pause Button -->
     <div class="buttons">
-        <button id="toggle-button" onclick="toggleSpeech()">Pause</button>
+        <button id="toggle-button" onclick="toggleSpeech()">Play</button>
     </div>
 
     <script>
         let phrases = [];
         let phraseIndex = 0;
-        let isPaused = false;
+        let isPaused = true;  // Initially paused
         let speaking = false;
         let wakeLock = null;
         let currentUtterance = null; // To keep track of the current utterance
@@ -137,9 +137,6 @@
             const data = jsyaml.load(yamlText);
 
             phrases = data.words; // Assign parsed words to the phrases array
-            playPhrases(); // Automatically start after loading
-            enterFullScreen(); // Request full screen on load
-            requestWakeLock(); // Request wake lock on load
         }
 
         // Play Vietnamese and English words one by one, in an infinite loop
@@ -194,12 +191,11 @@
             if (isPaused) {
                 isPaused = false;
                 document.getElementById('toggle-button').textContent = 'Pause';
-                playPhrases(); // Resume playing
-                requestWakeLock(); // Re-request wake lock when resumed
+                playPhrases(); // Start playing
+                requestWakeLock(); // Request wake lock when resumed
             } else {
                 isPaused = true;
                 document.getElementById('toggle-button').textContent = 'Play';
-                // No need to cancel the speech; we will handle it by checking isPaused in the repeatWord logic
                 releaseWakeLock(); // Release wake lock when paused
             }
         }
@@ -241,9 +237,9 @@
             }
         }
 
-        // Automatically start playing when the page loads
+        // Load YAML file when the page loads but don't start playing yet
         window.onload = function () {
-            loadYAML(); // Load YAML file and start playing
+            loadYAML(); // Load YAML file but wait for the user to press Play
         };
     </script>
 </body>
