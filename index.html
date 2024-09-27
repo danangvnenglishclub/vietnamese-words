@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vietnamese & English Phrases</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500&family=Roboto:wght@700&display=swap"
+        rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/js-yaml/4.1.0/js-yaml.min.js"></script> <!-- YAML Parser -->
+    <style>
+        body,
+        html {
+            margin: 0;
+            padding: 0;
+            height: 100%;
+            width: 100%;
+            display: flex;
+            flex-direction: row;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        .container {
+            display: flex;
+            flex-direction: row;
+            width: 100%;
+            height: 100vh;
+        }
+
+        .box {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        .box-black {
+            background-color: black;
+            color: white;
+        }
+
+        .box-white {
+            background-color: white;
+            color: black;
+        }
+
+        .word {
+            font-family: 'Roboto', sans-serif;
+            font-size: 6vw;
+            font-weight: 700;
+        }
+
+        .translation {
+            font-size: 4vw;
+            margin-top: 10px;
+        }
+
+        .buttons {
+            position: absolute;
+            bottom: 20px;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+        }
+
+        button {
+            padding: 15px 30px;
+            font-size: 4vw;
+            background-color: black;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-family: 'Poppins', sans-serif;
+        }
+
+        button:hover {
+            background-color: white;
+            color: black;
+            border: 2px solid black;
+        }
+
+        /* Media Queries for Mobile */
+        @media only screen and (max-width: 600px) {
+            .word {
+                font-size: 9vw;
+            }
+
+            .translation {
+                font-size: 6vw;
+            }
+
+            button {
+                font-size: 7vw;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="container">
+        <!-- Left Box (Vietnamese, black background with white text) -->
+        <div class="box box-black">
+            <div class="word" id="vietnamese-word">Xin chào</div>
+        </div>
+
+        <!-- Right Box (English, white background with black text) -->
+        <div class="box box-white">
+            <div class="word" id="english-word">Hello</div>
+        </div>
+    </div>
+
+    <!-- Play/Pause Button -->
+    <div class="buttons">
+        <button id="toggle-button" onclick="toggleSpeech()">Pause</button>
+    </div>
+
+    <script>
+        let phrases = [];
+        let phraseIndex = 0;
+        let isPaused = false;
+        let speaking = false;
+        let wakeLock = null;
+        let currentUtterance = null; // To keep track of the current utterance
+
+        // Load YAML file and parse it
+        async function loadYAML() {
+            const response = await fetch('words.yaml'); // Replace with your YAML file path
+            const yamlText = await response.text();
+            const data = jsyaml.load(yamlText);
+
+            phrases = data.words; // Assign parsed words to the phrases array
+            playPhrases(); // Automatically start after loading
+            enterFullScreen(); // Request full screen on load
+            requestWakeLock(); // Request wake lock on load
+        }
+
+        // Play Vietnamese and English words one by one, in an infinite loop
+        function playPhrases() {
+            if (!isPaused) {
+                // Reset index if it reaches the end of the list, making the loop infinite
+                if (phraseIndex >= phrases.length) {
+                    phraseIndex = 0;
+                }
+
+                // Display the current phrase
+                document.getElementById('vietnamese-word').textContent = phrases[phraseIndex].vietnamese;
+                document.getElementById('english-word').textContent = phrases[phraseIndex].english;
+
+                // Repeat Vietnamese and English words 3 times each
+                repeatWord(phrases[phraseIndex].vietnamese, 'vi-VN', 3, () => {
+                    repeatWord(phrases[phraseIndex].english, 'en-US', 1, () => {
+                        phraseIndex++;
+                        if (!isPaused) {
+                            setTimeout(playPhrases, 2000); // Play the next phrase after 2 seconds
+                        }
+                    });
+                });
+            }
+        }
+
+        // Function to repeat a word 'repeatCount' times with delay and slower speech rate
+        function repeatWord(text, lang, repeatCount, callback) {
+            let count = 0;
+
+            function speakWord() {
+                if (count < repeatCount && !isPaused) {
+                    currentUtterance = new SpeechSynthesisUtterance(text);
+                    currentUtterance.lang = lang;
+                    currentUtterance.rate = 0.8; // Slow down the speech rate
+
+                    currentUtterance.onend = () => {
+                        count++;
+                        setTimeout(speakWord, 2000); // 2-second delay between repetitions
+                    };
+                    window.speechSynthesis.speak(currentUtterance);
+                } else {
+                    callback(); // Call the next step after repeating the word
+                }
+            }
+
+            speakWord(); // Start speaking the word
+        }
+
+        // Toggle between Pause and Play
+        function toggleSpeech() {
+            if (isPaused) {
+                isPaused = false;
+                document.getElementById('toggle-button').textContent = 'Pause';
+                playPhrases(); // Resume playing
+                requestWakeLock(); // Re-request wake lock when resumed
+            } else {
+                isPaused = true;
+                document.getElementById('toggle-button').textContent = 'Play';
+                // No need to cancel the speech; we will handle it by checking isPaused in the repeatWord logic
+                releaseWakeLock(); // Release wake lock when paused
+            }
+        }
+
+        // Full screen mode
+        function enterFullScreen() {
+            const element = document.documentElement;
+            if (element.requestFullscreen) {
+                element.requestFullscreen();
+            } else if (element.mozRequestFullScreen) {
+                element.mozRequestFullScreen(); // Firefox
+            } else if (element.webkitRequestFullscreen) {
+                element.webkitRequestFullscreen(); // Chrome, Safari, Opera
+            } else if (element.msRequestFullscreen) {
+                element.msRequestFullscreen(); // IE/Edge
+            }
+        }
+
+        // Wake Lock API: Prevent screen from sleeping
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen'); // Request screen wake lock
+                wakeLock.addEventListener('release', () => {
+                    console.log('Wake lock released');
+                });
+                console.log('Wake lock is active');
+            } catch (err) {
+                console.error(`${err.name}, ${err.message}`);
+            }
+        }
+
+        // Release Wake Lock when paused
+        function releaseWakeLock() {
+            if (wakeLock !== null) {
+                wakeLock.release().then(() => {
+                    wakeLock = null;
+                    console.log('Wake lock released');
+                });
+            }
+        }
+
+        // Automatically start playing when the page loads
+        window.onload = function () {
+            loadYAML(); // Load YAML file and start playing
+        };
+    </script>
+</body>
+
+</html>
