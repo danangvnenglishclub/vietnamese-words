@@ -39,25 +39,33 @@
             text-align: center;
         }
 
-        .box-black {
+        /* Left Box (Vietnamese, starts with black background and white text) */
+        .box-vietnamese {
             background-color: black;
             color: white;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Roboto', sans-serif;
+            transition: background-color 1s, color 1s;
         }
 
-        .box-white {
+        /* Right Box (English, starts with white background and black text) */
+        .box-english {
             background-color: white;
             color: black;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-family: 'Poppins', sans-serif;
+            transition: background-color 1s, color 1s;
         }
 
         .word {
-            font-family: 'Roboto', sans-serif;
             font-size: 6vw;
             font-weight: 700;
-        }
-
-        .translation {
-            font-size: 4vw;
-            margin-top: 10px;
         }
 
         .buttons {
@@ -78,6 +86,7 @@
             border-radius: 5px;
             cursor: pointer;
             font-family: 'Poppins', sans-serif;
+            transition: background-color 1s, color 1s;
         }
 
         button:hover {
@@ -92,10 +101,6 @@
                 font-size: 9vw;
             }
 
-            .translation {
-                font-size: 6vw;
-            }
-
             button {
                 font-size: 7vw;
             }
@@ -106,13 +111,13 @@
 <body>
 
     <div class="container">
-        <!-- Left Box (Vietnamese, black background with white text) -->
-        <div class="box box-black">
+        <!-- Left Box (Vietnamese Word) -->
+        <div class="box box-vietnamese" id="vietnamese-box">
             <div class="word" id="vietnamese-word">Xin chào</div>
         </div>
 
-        <!-- Right Box (English, white background with black text) -->
-        <div class="box box-white">
+        <!-- Right Box (English Word) -->
+        <div class="box box-english" id="english-box">
             <div class="word" id="english-word">Hello</div>
         </div>
     </div>
@@ -126,9 +131,10 @@
         let phrases = [];
         let phraseIndex = 0;
         let isPaused = true;  // Initially paused
-        let speaking = false;
         let wakeLock = null;
         let currentUtterance = null; // To keep track of the current utterance
+        let colorAlternator = true;
+        let buttonAlternator = true; // For Play/Pause button color alternation
 
         // Load YAML file and parse it
         async function loadYAML() {
@@ -139,10 +145,10 @@
             phrases = data.words; // Assign parsed words to the phrases array
         }
 
-        // Play Vietnamese and English words one by one, in an infinite loop
+        // Play Vietnamese 3 times and English word once, in an infinite loop
         function playPhrases() {
             if (!isPaused) {
-                // Reset index if it reaches the end of the list, making the loop infinite
+                // Reset index if it reaches the end of the list
                 if (phraseIndex >= phrases.length) {
                     phraseIndex = 0;
                 }
@@ -151,9 +157,12 @@
                 document.getElementById('vietnamese-word').textContent = phrases[phraseIndex].vietnamese;
                 document.getElementById('english-word').textContent = phrases[phraseIndex].english;
 
-                // Repeat Vietnamese and English words 3 times each
-                repeatWord(phrases[phraseIndex].vietnamese, 'vi-VN', 3, () => {
-                    repeatWord(phrases[phraseIndex].english, 'en-US', 1, () => {
+                // Change colors and fonts to prevent OLED burn-in
+                alternateColors();
+
+                // Say English word once, followed by Vietnamese word 3 times
+                speakWord(phrases[phraseIndex].english, 'en-US', 1, () => {
+                    speakWord(phrases[phraseIndex].vietnamese, 'vi-VN', 3, () => {
                         phraseIndex++;
                         if (!isPaused) {
                             setTimeout(playPhrases, 2000); // Play the next phrase after 2 seconds
@@ -163,41 +172,80 @@
             }
         }
 
-        // Function to repeat a word 'repeatCount' times with delay and slower speech rate
-        function repeatWord(text, lang, repeatCount, callback) {
+        // Function to speak a word a specified number of times
+        function speakWord(text, lang, repeatCount, callback) {
             let count = 0;
 
-            function speakWord() {
+            function speak() {
                 if (count < repeatCount && !isPaused) {
                     currentUtterance = new SpeechSynthesisUtterance(text);
                     currentUtterance.lang = lang;
                     currentUtterance.rate = 0.8; // Slow down the speech rate
-
                     currentUtterance.onend = () => {
                         count++;
-                        setTimeout(speakWord, 2000); // 2-second delay between repetitions
+                        setTimeout(speak, 2000); // 2-second delay between repetitions
                     };
                     window.speechSynthesis.speak(currentUtterance);
                 } else {
-                    callback(); // Call the next step after repeating the word
+                    callback();
                 }
             }
 
-            speakWord(); // Start speaking the word
+            speak(); // Start speaking the word
+        }
+
+        // Function to alternate colors and fonts to prevent OLED burn-in
+        function alternateColors() {
+            const vietnameseBox = document.getElementById('vietnamese-box');
+            const englishBox = document.getElementById('english-box');
+
+            if (colorAlternator) {
+                vietnameseBox.style.backgroundColor = 'black';
+                vietnameseBox.style.color = 'white';
+                englishBox.style.backgroundColor = 'white';
+                englishBox.style.color = 'black';
+            } else {
+                vietnameseBox.style.backgroundColor = 'white';
+                vietnameseBox.style.color = 'black';
+                englishBox.style.backgroundColor = 'black';
+                englishBox.style.color = 'white';
+            }
+
+            colorAlternator = !colorAlternator; // Toggle colors
         }
 
         // Toggle between Pause and Play
         function toggleSpeech() {
+            const button = document.getElementById('toggle-button');
+
             if (isPaused) {
                 isPaused = false;
-                document.getElementById('toggle-button').textContent = 'Pause';
+                button.textContent = 'Pause';
                 playPhrases(); // Start playing
                 requestWakeLock(); // Request wake lock when resumed
             } else {
                 isPaused = true;
-                document.getElementById('toggle-button').textContent = 'Play';
+                button.textContent = 'Play';
                 releaseWakeLock(); // Release wake lock when paused
             }
+
+            // Alternate Play/Pause button color to prevent OLED burn-in
+            alternateButtonColor();
+        }
+
+        // Function to alternate Play/Pause button color
+        function alternateButtonColor() {
+            const button = document.getElementById('toggle-button');
+
+            if (buttonAlternator) {
+                button.style.backgroundColor = 'white';
+                button.style.color = 'black';
+            } else {
+                button.style.backgroundColor = 'black';
+                button.style.color = 'white';
+            }
+
+            buttonAlternator = !buttonAlternator; // Toggle button colors
         }
 
         // Full screen mode
