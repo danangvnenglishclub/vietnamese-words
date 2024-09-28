@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Vietnamese & English Phrases</title>
+    <title>Language Phrases</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500&family=Roboto:wght@700&display=swap"
@@ -39,8 +39,7 @@
             text-align: center;
         }
 
-        /* Left Box (Vietnamese, starts with black background and white text) */
-        .box-vietnamese {
+        .box-left {
             background-color: black;
             color: white;
             flex: 1;
@@ -51,8 +50,7 @@
             transition: background-color 1s, color 1s;
         }
 
-        /* Right Box (English, starts with white background and black text) */
-        .box-english {
+        .box-right {
             background-color: white;
             color: black;
             flex: 1;
@@ -111,14 +109,14 @@
 <body>
 
     <div class="container">
-        <!-- Left Box (Vietnamese Word) -->
-        <div class="box box-vietnamese" id="vietnamese-box">
-            <div class="word" id="vietnamese-word">Xin chào</div>
+        <!-- Left Box (Other Language) -->
+        <div class="box box-left" id="left-box">
+            <div class="word" id="left-word">Hello</div>
         </div>
 
-        <!-- Right Box (English Word) -->
-        <div class="box box-english" id="english-box">
-            <div class="word" id="english-word">Hello</div>
+        <!-- Right Box (Vietnamese or Other Language) -->
+        <div class="box box-right" id="right-box">
+            <div class="word" id="right-word">Xin chào</div>
         </div>
     </div>
 
@@ -135,6 +133,31 @@
         let currentUtterance = null; // To keep track of the current utterance
         let colorAlternator = true;
         let buttonAlternator = true; // For Play/Pause button color alternation
+        let leftLanguageKey = 'english'; // Default is English
+        let rightLanguageKey = 'vietnamese'; // Default is Vietnamese
+
+        // Function to get URL parameters
+        function getURLParameter(name) {
+            return new URLSearchParams(window.location.search).get(name);
+        }
+
+        // Check the URL parameter and adjust the repetition and languages
+        function checkLanguageParameter() {
+            const language = getURLParameter('lang');
+            console.log('Language parameter:', language); // Debugging
+
+            if (language === 'chinese') {
+                leftLanguageKey = 'vietnamese';
+                rightLanguageKey = 'chinese';  // Vietnamese on the left, Chinese on the right
+            } else if (language === 'english') {
+                leftLanguageKey = 'vietnamese';
+                rightLanguageKey = 'english';  // Vietnamese on the left, English on the right
+            } else {
+                // Default: English on the left, Vietnamese on the right
+                leftLanguageKey = 'english';
+                rightLanguageKey = 'vietnamese';
+            }
+        }
 
         // Load YAML file and parse it
         async function loadYAML() {
@@ -143,9 +166,19 @@
             const data = jsyaml.load(yamlText);
 
             phrases = data.words; // Assign parsed words to the phrases array
+            console.log('Loaded phrases:', phrases); // Debugging
+
+            // Display the initial words correctly after the YAML file is loaded
+            displayInitialWords();
         }
 
-        // Play Vietnamese 3 times and English word once, in an infinite loop
+        // Display initial words based on the URL parameter
+        function displayInitialWords() {
+            document.getElementById('left-word').textContent = phrases[phraseIndex][leftLanguageKey];
+            document.getElementById('right-word').textContent = phrases[phraseIndex][rightLanguageKey];
+        }
+
+        // Play words from the left and right sides based on the parameter
         function playPhrases() {
             if (!isPaused) {
                 // Reset index if it reaches the end of the list
@@ -154,15 +187,15 @@
                 }
 
                 // Display the current phrase
-                document.getElementById('vietnamese-word').textContent = phrases[phraseIndex].vietnamese;
-                document.getElementById('english-word').textContent = phrases[phraseIndex].english;
+                document.getElementById('left-word').textContent = phrases[phraseIndex][leftLanguageKey];
+                document.getElementById('right-word').textContent = phrases[phraseIndex][rightLanguageKey];
 
                 // Change colors and fonts to prevent OLED burn-in
                 alternateColors();
 
-                // Say English word once, followed by Vietnamese word 3 times
-                speakWord(phrases[phraseIndex].english, 'en-US', 1, () => {
-                    speakWord(phrases[phraseIndex].vietnamese, 'vi-VN', 3, () => {
+                // Speak left word once, then right word three times
+                speakWord(phrases[phraseIndex][leftLanguageKey], leftLanguageKey === 'english' ? 'en-US' : 'vi-VN', 1, () => {
+                    speakWord(phrases[phraseIndex][rightLanguageKey], rightLanguageKey === 'vietnamese' ? 'vi-VN' : 'zh-CN', 3, () => {
                         phraseIndex++;
                         if (!isPaused) {
                             setTimeout(playPhrases, 2000); // Play the next phrase after 2 seconds
@@ -196,19 +229,19 @@
 
         // Function to alternate colors and fonts to prevent OLED burn-in
         function alternateColors() {
-            const vietnameseBox = document.getElementById('vietnamese-box');
-            const englishBox = document.getElementById('english-box');
+            const leftBox = document.getElementById('left-box');
+            const rightBox = document.getElementById('right-box');
 
             if (colorAlternator) {
-                vietnameseBox.style.backgroundColor = 'black';
-                vietnameseBox.style.color = 'white';
-                englishBox.style.backgroundColor = 'white';
-                englishBox.style.color = 'black';
+                leftBox.style.backgroundColor = 'black';
+                leftBox.style.color = 'white';
+                rightBox.style.backgroundColor = 'white';
+                rightBox.style.color = 'black';
             } else {
-                vietnameseBox.style.backgroundColor = 'white';
-                vietnameseBox.style.color = 'black';
-                englishBox.style.backgroundColor = 'black';
-                englishBox.style.color = 'white';
+                leftBox.style.backgroundColor = 'white';
+                leftBox.style.color = 'black';
+                rightBox.style.backgroundColor = 'black';
+                rightBox.style.color = 'white';
             }
 
             colorAlternator = !colorAlternator; // Toggle colors
@@ -285,8 +318,9 @@
             }
         }
 
-        // Load YAML file when the page loads but don't start playing yet
+        // Load YAML file and check URL parameter when the page loads but don't start playing yet
         window.onload = function () {
+            checkLanguageParameter(); // Set language based on URL parameter
             loadYAML(); // Load YAML file but wait for the user to press Play
         };
     </script>
