@@ -66,6 +66,12 @@
             font-weight: 700;
         }
 
+        .pinyin {
+            font-size: 3vw;
+            font-weight: 400;
+            margin-top: 10px;
+        }
+
         .buttons {
             position: absolute;
             bottom: 20px;
@@ -97,6 +103,10 @@
         @media only screen and (max-width: 600px) {
             .word {
                 font-size: 9vw;
+            }
+
+            .pinyin {
+                font-size: 6vw;
             }
 
             button {
@@ -144,8 +154,6 @@
         // Check the URL parameter and adjust the repetition and languages
         function checkLanguageParameter() {
             const language = getURLParameter('lang');
-            console.log('Language parameter:', language); // Debugging
-
             if (language === 'chinese') {
                 leftLanguageKey = 'vietnamese';
                 rightLanguageKey = 'chinese';  // Vietnamese on the left, Chinese on the right
@@ -166,7 +174,6 @@
             const data = jsyaml.load(yamlText);
 
             phrases = data.words; // Assign parsed words to the phrases array
-            console.log('Loaded phrases:', phrases); // Debugging
 
             // Display the initial words correctly after the YAML file is loaded
             displayInitialWords();
@@ -176,55 +183,86 @@
         function displayInitialWords() {
             document.getElementById('left-word').textContent = phrases[phraseIndex][leftLanguageKey];
             document.getElementById('right-word').textContent = phrases[phraseIndex][rightLanguageKey];
+
+            // Add pinyin underneath the Chinese word if it exists
+            if (rightLanguageKey === 'chinese') {
+                const pinyinElement = document.createElement('div');
+                pinyinElement.classList.add('pinyin');
+                pinyinElement.textContent = phrases[phraseIndex].pinyin;
+                document.getElementById('right-word').appendChild(pinyinElement);
+            }
         }
 
         // Play words from the left and right sides based on the parameter
         function playPhrases() {
             if (!isPaused) {
-                // Reset index if it reaches the end of the list
                 if (phraseIndex >= phrases.length) {
                     phraseIndex = 0;
                 }
 
-                // Display the current phrase
                 document.getElementById('left-word').textContent = phrases[phraseIndex][leftLanguageKey];
                 document.getElementById('right-word').textContent = phrases[phraseIndex][rightLanguageKey];
 
-                // Change colors and fonts to prevent OLED burn-in
-                alternateColors();
+                // Clear any previous pinyin element and add a new one if Chinese is selected
+                const rightWordDiv = document.getElementById('right-word');
+                const existingPinyin = rightWordDiv.querySelector('.pinyin');
+                if (existingPinyin) {
+                    rightWordDiv.removeChild(existingPinyin);
+                }
 
-                // Speak left word once, then right word three times
+                if (rightLanguageKey === 'chinese') {
+                    const pinyinElement = document.createElement('div');
+                    pinyinElement.classList.add('pinyin');
+                    pinyinElement.textContent = phrases[phraseIndex].pinyin;
+                    rightWordDiv.appendChild(pinyinElement);
+                }
+
+                alternateColors();
                 speakWord(phrases[phraseIndex][leftLanguageKey], leftLanguageKey === 'english' ? 'en-US' : 'vi-VN', 1, () => {
-                    speakWord(phrases[phraseIndex][rightLanguageKey], rightLanguageKey === 'vietnamese' ? 'vi-VN' : 'zh-CN', 3, () => {
+                    speakWord(phrases[phraseIndex][rightLanguageKey], rightLanguageKey === 'vietnamese' ? 'vi-VN' : (rightLanguageKey === 'english' ? 'en-US' : 'zh-CN'), 3, () => {
                         phraseIndex++;
                         if (!isPaused) {
-                            setTimeout(playPhrases, 2000); // Play the next phrase after 2 seconds
+                            setTimeout(playPhrases, 2000);
                         }
                     });
                 });
             }
         }
 
-        // Function to speak a word a specified number of times
+        // Function to speak a word a specified number of times with correct voice and locale
         function speakWord(text, lang, repeatCount, callback) {
             let count = 0;
+            const selectedVoice = getVoiceForLanguage(lang); // Ensure correct voice is chosen
 
             function speak() {
                 if (count < repeatCount && !isPaused) {
-                    currentUtterance = new SpeechSynthesisUtterance(text);
-                    currentUtterance.lang = lang;
-                    currentUtterance.rate = 0.8; // Slow down the speech rate
-                    currentUtterance.onend = () => {
+                    const utterance = new SpeechSynthesisUtterance(text);
+                    utterance.lang = lang;
+
+                    // Ensure the correct voice is used
+                    if (selectedVoice) {
+                        utterance.voice = selectedVoice;
+                    }
+
+                    utterance.rate = 0.6; // Slow down the speech rate
+                    utterance.onend = () => {
                         count++;
                         setTimeout(speak, 2000); // 2-second delay between repetitions
                     };
-                    window.speechSynthesis.speak(currentUtterance);
+
+                    window.speechSynthesis.speak(utterance);
                 } else {
                     callback();
                 }
             }
 
             speak(); // Start speaking the word
+        }
+
+        // Function to get the correct voice for a given language
+        function getVoiceForLanguage(lang) {
+            const voices = window.speechSynthesis.getVoices();
+            return voices.find(voice => voice.lang === lang);
         }
 
         // Function to alternate colors and fonts to prevent OLED burn-in
@@ -262,7 +300,6 @@
                 releaseWakeLock(); // Release wake lock when paused
             }
 
-            // Alternate Play/Pause button color to prevent OLED burn-in
             alternateButtonColor();
         }
 
@@ -279,20 +316,6 @@
             }
 
             buttonAlternator = !buttonAlternator; // Toggle button colors
-        }
-
-        // Full screen mode
-        function enterFullScreen() {
-            const element = document.documentElement;
-            if (element.requestFullscreen) {
-                element.requestFullscreen();
-            } else if (element.mozRequestFullScreen) {
-                element.mozRequestFullScreen(); // Firefox
-            } else if (element.webkitRequestFullscreen) {
-                element.webkitRequestFullscreen(); // Chrome, Safari, Opera
-            } else if (element.msRequestFullscreen) {
-                element.msRequestFullscreen(); // IE/Edge
-            }
         }
 
         // Wake Lock API: Prevent screen from sleeping
